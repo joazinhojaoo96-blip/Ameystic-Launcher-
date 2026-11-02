@@ -656,7 +656,11 @@ static GameSurfaceView* pojavWindow;
 - (void)registerMouseCallbacks:(GCMouse *)mouse {
     NSLog(@"Input: Got mouse %@", mouse);
     mouse.mouseInput.mouseMovedHandler = ^(GCMouseInput * _Nonnull mouse, float deltaX, float deltaY) {
-        if (!self.view.window.windowScene.pointerLockState.locked) {
+        // GCMouseInput reports raw movement deltas independently of the UIKit
+        // pointer-lock state. Keep the game's camera/virtual cursor responsive
+        // when iOS doesn't grant system pointer lock; prefersPointerLocked still
+        // requests the native lock so the system cursor can be confined/hidden.
+        if (!isGrabbing && !virtualMouseEnabled) {
             return;
         }
         [self sendTouchPoint:CGPointMake(deltaX, -deltaY) withEvent:ACTION_MOVE_MOTION];
