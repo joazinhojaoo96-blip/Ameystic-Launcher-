@@ -15,3 +15,6 @@
     path = Natives/external/MobileGlues
     url = https://github.com/MobileGL-Dev/MobileGlues
     branch = main
+[submodule "DBNumberedSlider"]
+	path = Natives/external/DBNumberedSlider
+	url = https://github.com/khanhduytran0/DBNumberedSlider
