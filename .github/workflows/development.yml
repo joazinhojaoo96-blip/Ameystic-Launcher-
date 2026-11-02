@@ -1,5 +1,4 @@
-﻿
-name: Development build
+﻿name: Development build
 
 on:
   pull_request:
@@ -17,14 +16,14 @@ permissions:
 jobs:
   build:
     name: Development build
+    runs-on: macos-latest
+    timeout-minutes: 90
 
     strategy:
       matrix:
         include:
           - platform: 2
             platform_name: ios
-
-    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
@@ -37,71 +36,61 @@ jobs:
         with:
           distribution: temurin
           java-version: '8'
-      - name: Install GNU Make
+
+      - name: Install build dependencies
         shell: bash
         run: |
-          brew install make
+          brew install make cmake ldid
           echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
 
-      - name: Get gl4es latest commit hash
-        id: gl4es-sha
+      - name: Verify build environment
         shell: bash
         run: |
-          SHA=$(git ls-remote https://github.com/PojavLauncherTeam/gl4es-114-extra refs/heads/master | awk '{print $1}')
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "JAVA_HOME=$JAVA_HOME"
+          "$JAVA_HOME/bin/javac" -version
+          cmake --version
+          ldid -h || true
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
 
-      - name: Cache gl4es
-        uses: actions/cache@v4
-        if: false
-        id: gl4es-cache
-        with:
-          path: gl4es/libs
-          key: gl4es-holy-ios-shared-2-${{ steps.gl4es-sha.outputs.sha }}
-
-      - name: Build for ${{ matrix.platform_name }}
+      - name: Build for iOS
         shell: bash
         run: |
           export PATH="$(brew --prefix make)/libexec/gnubin:/opt/homebrew/bin:$PATH"
           export SLIMMED=1
 
-          if [ "${{ matrix.platform_name }}" == "ios" ]; then
-            gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }}
-            gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} TROLLSTORE_JIT_ENT=1
-          fi
+          BOOTJDK="$JAVA_HOME/bin"
+          SDKPATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          JOBS="$(sysctl -n hw.ncpu)"
 
-      - name: Upload regular ipa
+          gmake -j"$JOBS" dsym package \
+            PLATFORM=2 \
+            BOOTJDK="$BOOTJDK" \
+            SDKPATH="$SDKPATH"
+
+          gmake -j"$JOBS" dsym package \
+            PLATFORM=2 \
+            BOOTJDK="$BOOTJDK" \
+            SDKPATH="$SDKPATH" \
+            TROLLSTORE_JIT_ENT=1
+
+      - name: Upload regular IPA
         uses: actions/upload-artifact@v4
         with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}.ipa
-          path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}.ipa
+          name: Amethyst-iOS-IPA
+          path: artifacts/*.ipa
+          if-no-files-found: error
+
+      - name: Upload TrollStore TIPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amethyst-iOS-TrollStore
+          path: artifacts/*.tipa
           if-no-files-found: warn
 
-      - name: Upload regular tipa
+      - name: Upload dSYM
         uses: actions/upload-artifact@v4
         with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}-trollstore.tipa
-          path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}-trollstore.tipa
-          if-no-files-found: warn
-
-      - name: Upload slimmed ipa
-        uses: actions/upload-artifact@v4
-        with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}.ipa
-          path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}.ipa
-          if-no-files-found: warn
-
-      - name: Upload slimmed tipa
-        uses: actions/upload-artifact@v4
-        with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}-trollstore.tipa
-          path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}-trollstore.tipa
-          if-no-files-found: warn
-
-      - name: Upload PojavLauncher.dSYM
-        uses: actions/upload-artifact@v4
-        if: matrix.platform_name == 'ios'
-        with:
-          name: AngelAuraAmethyst.dSYM
+          name: Amethyst-dSYM
           path: artifacts/AngelAuraAmethyst.dSYM
           if-no-files-found: warn
-
